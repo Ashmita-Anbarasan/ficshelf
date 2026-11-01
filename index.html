@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="An unofficial, fan-made reader for your downloaded AO3 fics. Connect Google Drive folders, browse by fandom, ship and tags, and read offline.">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#f0508a">
+<title>FicShelf</title>
+<script>try{var t=JSON.parse(localStorage.getItem("ficshelf.theme"));if(["blossom","matcha","lavender","sunset","peony"].includes(t))document.documentElement.dataset.theme=t;}catch(e){}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600;1,9..144,700&family=Lora:ital,wght@0,400;0,600;1,400&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <button class="icon-btn only-narrow" id="toggleSidebar" title="Filters" aria-label="Filters">☰</button>
+  <a class="brand" href="#/">Fic<span>Shelf</span></a>
+  <form class="search" id="searchForm" role="search">
+    <input id="q" type="search" placeholder="Search title, author, fandom, tag, summary…" autocomplete="off">
+    <button class="btn primary search-btn" type="submit">Search</button>
+  </form>
+  <div class="top-actions">
+    <button class="btn ghost" id="openSources">Sources</button>
+    <button class="btn theme-btn" id="themeBtn" title="Change theme" aria-haspopup="true"><span class="sw"></span><span id="themeName">Theme</span></button>
+  </div>
+  <div class="theme-pop" id="themePop" hidden></div>
+</header>
+
+<div class="layout" id="libraryView">
+  <aside class="sidebar" id="sidebar">
+    <nav class="shelves" id="shelves"></nav>
+    <div id="facets"></div>
+  </aside>
+  <main class="main">
+    <div class="toolbar">
+      <div class="count" id="count"></div>
+      <div class="active-filters" id="activeFilters"></div>
+      <div class="tools">
+        <select id="sort" aria-label="Sort">
+          <option value="added">Recently added</option>
+          <option value="opened">Recently opened</option>
+          <option value="updated">Recently updated</option>
+          <option value="title">Title A–Z</option>
+          <option value="author">Author A–Z</option>
+          <option value="words_desc">Longest first</option>
+          <option value="words_asc">Shortest first</option>
+        </select>
+        <div class="seg" role="group" aria-label="View">
+          <button data-view="cards" class="on" title="Cards">▦</button>
+          <button data-view="rows" title="List">☰</button>
+        </div>
+      </div>
+    </div>
+    <div id="scanBanner" class="scan-banner" hidden></div>
+    <div id="list" class="cards"></div>
+    <div id="more" class="more"></div>
+    <div id="empty" class="empty" hidden>
+      <h2>Your shelf is empty</h2>
+      <p>Add a Google Drive folder link or drop EPUB/PDF files to get started.</p>
+      <button class="btn primary" id="emptyAdd">Add a source</button>
+    </div>
+  </main>
+</div>
+
+<!-- detail drawer -->
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="drawer" aria-hidden="true"></aside>
+
+<!-- sources / settings -->
+<div class="modal" id="sourcesModal" hidden>
+  <div class="modal-card">
+    <div class="modal-head"><h2>Sources</h2><button class="icon-btn" data-close>✕</button></div>
+    <form id="addSource" class="add-source">
+      <input id="sourceUrl" placeholder="Paste a Google Drive folder link (anyone with the link)" required>
+      <button class="btn primary">Add &amp; scan</button>
+    </form>
+    <p class="hint">Only each file's details are read. Full files download when you open them, and are saved in this browser for offline reading.</p>
+    <p class="hint warn" id="keyNote" hidden>This site doesn't have a Google API key yet, so it can't read Drive folders. Add one in Settings below (or ask whoever shared this site).</p>
+    <div id="sourceList"></div>
+    <div class="drop" id="drop">
+      <strong>Import files from your device</strong>
+      <span>Drop EPUB or PDF files here, or <label class="link">browse<input type="file" id="fileInput" multiple accept=".epub,.pdf" hidden></label>. Imported files are always kept offline.</span>
+    </div>
+    <h3>Settings</h3>
+    <div class="settings">
+      <label>Offline cache limit
+        <select id="cacheLimit">
+          <option value="512">512 MB</option><option value="1024">1 GB</option><option value="2048">2 GB</option>
+          <option value="5120">5 GB</option><option value="10240">10 GB</option><option value="0">No limit</option>
+        </select>
+      </label>
+      <div class="cache-use" id="cacheUse"></div>
+      <label>Google API key <span class="muted">(only if this site doesn't have one built in)</span>
+        <input id="apiKey" placeholder="">
+      </label>
+      <button class="btn" id="saveSettings">Save settings</button>
+      <div class="backup">
+        <strong>Backup</strong>
+        <span class="muted">Your library lives in this browser only. Save a backup to move it to another browser or device (downloaded files aren't included; they re-download when opened).</span>
+        <div class="src-btns"><button class="btn" id="exportBtn" type="button">Save backup</button>
+          <label class="btn">Restore backup<input type="file" id="importInput" accept=".json,application/json" hidden></label></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- reader -->
+<div class="reader" id="reader" hidden>
+  <div class="reader-bar">
+    <button class="btn ghost" id="readerBack">← Library</button>
+    <div class="reader-title" id="readerTitle"></div>
+    <form class="reader-find" id="findForm" role="search">
+      <input id="findQ" type="search" placeholder="Find in story…" autocomplete="off">
+      <span class="find-count" id="findCount"></span>
+      <button type="button" class="icon-btn" id="findPrev" title="Previous match (Shift+Enter)">↑</button>
+      <button type="submit" class="icon-btn" id="findNext" title="Next match (Enter)">↓</button>
+    </form>
+    <div class="reader-tools">
+      <select id="chapterSel" aria-label="Chapter"></select>
+      <button class="btn ghost" id="widthBtn" title="Text width">Width: Full</button>
+      <button class="icon-btn" id="fontDown" title="Smaller text">A−</button>
+      <button class="icon-btn" id="fontUp" title="Larger text">A+</button>
+      <div class="seg" id="readerTheme">
+        <button data-rt="light" title="Paper tinted with your theme">Paper</button>
+        <button data-rt="sepia" title="Sepia">Sepia</button>
+        <button data-rt="dark" title="Night">Night</button>
+      </div>
+    </div>
+  </div>
+  <div class="reader-progress"><div id="readerProgress"></div></div>
+  <div class="reader-scroll" id="readerScroll"><article class="book" id="book"></article></div>
+  
+</div>
+
+<div class="toast" id="toast" hidden></div>
+<footer class="foot">FicShelf is an unofficial, fan-made reader for fics you've downloaded. Not affiliated with AO3 or the OTW. Your library lives only in this browser.</footer>
+<script src="config.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";</script>
+<script src="core.js"></script>
+<script src="lib.js"></script>
+<script src="app.js"></script>
+<script>if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});</script>
+</body>
+</html>
